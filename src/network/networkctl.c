@@ -672,7 +672,7 @@ static int list_links(int argc, char *argv[], void *userdata) {
 
         (void) pager_open(arg_pager_flags);
 
-        table = table_new("idx", "link", "type", "operational", "setup");
+        table = table_new("idx", "link", "type", "operational", "ipv4", "ipv6", "setup");
         if (!table)
                 return log_oom();
 
@@ -691,13 +691,21 @@ static int list_links(int argc, char *argv[], void *userdata) {
         (void) table_set_ellipsize_percent(table, cell, 100);
 
         for (int i = 0; i < c; i++) {
-                _cleanup_free_ char *setup_state = NULL, *operational_state = NULL;
+                _cleanup_free_ char *setup_state = NULL, *operational_state = NULL, *ipv4_state = NULL, *ipv6_state = NULL;
                 const char *on_color_operational, *off_color_operational,
-                           *on_color_setup, *off_color_setup;
+                           *on_color_setup, *off_color_setup,
+                           *on_color_ipv4, *off_color_ipv4,
+                           *on_color_ipv6, *off_color_ipv6;
                 _cleanup_free_ char *t = NULL;
 
                 (void) sd_network_link_get_operational_state(links[i].ifindex, &operational_state);
                 operational_state_to_color(links[i].name, operational_state, &on_color_operational, &off_color_operational);
+
+                (void) sd_network_link_get_ipv4_address_state(links[i].ifindex, &ipv4_state);
+                operational_state_to_color(links[i].name, ipv4_state, &on_color_ipv4, &off_color_ipv4);
+
+                (void) sd_network_link_get_ipv6_address_state(links[i].ifindex, &ipv6_state);
+                operational_state_to_color(links[i].name, ipv6_state, &on_color_ipv6, &off_color_ipv6);
 
                 r = sd_network_link_get_setup_state(links[i].ifindex, &setup_state);
                 if (r == -ENODATA) /* If there's no info available about this iface, it's unmanaged by networkd */
@@ -712,6 +720,10 @@ static int list_links(int argc, char *argv[], void *userdata) {
                                    TABLE_STRING, strna(t),
                                    TABLE_STRING, strna(operational_state),
                                    TABLE_SET_COLOR, on_color_operational,
+                                   TABLE_STRING, strna(ipv4_state),
+                                   TABLE_SET_COLOR, on_color_ipv4,
+                                   TABLE_STRING, strna(ipv6_state),
+                                   TABLE_SET_COLOR, on_color_ipv6,
                                    TABLE_STRING, strna(setup_state),
                                    TABLE_SET_COLOR, on_color_setup);
                 if (r < 0)
@@ -1387,7 +1399,7 @@ static int link_status_one(
 
         _cleanup_strv_free_ char **dns = NULL, **ntp = NULL, **sip = NULL, **search_domains = NULL, **route_domains = NULL;
         _cleanup_free_ char *t = NULL, *network = NULL, *iaid = NULL, *duid = NULL,
-                *setup_state = NULL, *operational_state = NULL, *lease_file = NULL, *activation_policy = NULL;
+                *setup_state = NULL, *operational_state = NULL, *lease_file = NULL, *activation_policy = NULL, *address_family = NULL;
         const char *driver = NULL, *path = NULL, *vendor = NULL, *model = NULL, *link = NULL,
                 *on_color_operational, *off_color_operational, *on_color_setup, *off_color_setup;
         _cleanup_free_ int *carrier_bound_to = NULL, *carrier_bound_by = NULL;
@@ -1401,6 +1413,8 @@ static int link_status_one(
 
         (void) sd_network_link_get_operational_state(info->ifindex, &operational_state);
         operational_state_to_color(info->name, operational_state, &on_color_operational, &off_color_operational);
+
+        //(void) sd_network_link_get_address_family(info->ifindex, &address_family);
 
         r = sd_network_link_get_setup_state(info->ifindex, &setup_state);
         if (r == -ENODATA) /* If there's no info available about this iface, it's unmanaged by networkd */
@@ -1478,8 +1492,9 @@ static int link_status_one(
                            TABLE_STRING, "State:");
         if (r < 0)
                 return table_log_add_error(r);
-        r = table_add_cell_stringf(table, NULL, "%s%s%s (%s%s%s)",
+        r = table_add_cell_stringf(table, NULL, "%s%s%s (family: %s, setup: %s%s%s)",
                                    on_color_operational, strna(operational_state), off_color_operational,
+                                   strna(address_family),
                                    on_color_setup, strna(setup_state), off_color_setup);
         if (r < 0)
                 return table_log_add_error(r);

@@ -230,6 +230,11 @@
         </listitem>
       </varlistentry>
       <varlistentry>
+        <term><varname>RequiredFamilyForOnline=</varname></term>
+        <listitem>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
         <term><varname>ActivationPolicy=</varname></term>
         <listitem>
           <para>Specifies the policy for <command>systemd-networkd</command> managing the link
@@ -1680,7 +1685,7 @@ IPv6Token=prefixstable:2002:da8:1::</programlisting></para>
             <para>When configured, the specified Manufacturer Usage Description (MUD) URL will be sent to the
             DHCPv4 server. Takes a URL of length up to 255 characters. A superficial verification that the
             string is a valid URL will be performed. DHCPv4 clients are intended to have at most one MUD URL
-            associated with them. See <ulink url="https://tools.ietf.org/html/rfc8520">RFC 8520</ulink>.
+            associated with them. See <ulink url="https://tools.ietf.org/html/rfc8520">RFC 8520</ulink>.
             </para>
 
             <para>MUD is an embedded software standard defined by the IETF that allows IoT device makers to

@@ -526,15 +526,12 @@ class Utilities():
 
     def wait_operstate(self, link, operstate='degraded', setup_state='configured', setup_timeout=5, fail_assert=True):
         """Wait for the link to reach the specified operstate and/or setup state.
-
         Specify None or '' for either operstate or setup_state to ignore that state.
         This will recheck until the state conditions are met or the timeout expires.
-
         If the link successfully matches the requested state, this returns True.
         If this times out waiting for the link to match, the behavior depends on the
         'fail_assert' parameter; if True, this causes a test assertion failure,
         otherwise this returns False.  The default is to cause assertion failure.
-
         Note that this function matches on *exactly* the given operstate and setup_state.
         To wait for a link to reach *or exceed* a given operstate, use wait_online().
         """
@@ -555,7 +552,7 @@ class Utilities():
             self.fail(f'Timed out waiting for {link} to reach state {operstate}/{setup_state}')
         return False
 
-    def wait_online(self, links_with_operstate, timeout='20s', bool_any=False, setup_state='configured', setup_timeout=5):
+    def wait_online(self, links_with_operstate, timeout='20s', bool_any=False, ipv4=False, ipv6=False, setup_state='configured', setup_timeout=5):
         """Wait for the link(s) to reach the specified operstate and/or setup state.
 
         This is similar to wait_operstate() but can be used for multiple links,
@@ -569,6 +566,8 @@ class Utilities():
         Set 'bool_any' to True to wait for any (instead of all) of the given links.
         If this is set, no setup_state checks are done.
 
+        Set ipv4...
+
         Note that this function waits for the link(s) to reach *or exceed* the given operstate.
         However, the setup_state, if specified, must be matched *exactly*.
 
@@ -578,6 +577,10 @@ class Utilities():
         args = wait_online_cmd + [f'--timeout={timeout}'] + [f'--interface={link}' for link in links_with_operstate]
         if bool_any:
             args += ['--any']
+        if ipv4:
+            args += ['--ipv4']
+        if ipv6:
+            args += ['--ipv6']
         try:
             check_output(*args, env=env)
         except subprocess.CalledProcessError:
@@ -586,6 +589,7 @@ class Utilities():
                 print(output)
             raise
         if not bool_any and setup_state:
+        #if not bool_any and not ipv4 and not ipv6 and setup_state:
             for link in links_with_operstate:
                 self.wait_operstate(link.split(':')[0], None, setup_state, setup_timeout)
 
@@ -1003,6 +1007,22 @@ class NetworkdNetDevTests(unittest.TestCase, Utilities):
 
         self.wait_operstate('bridge99', '(off|no-carrier)', setup_state='configuring')
         self.wait_operstate('test1', 'degraded')
+
+    def test_wait_online_ipv4(self):
+        copy_unit_to_networkd_unit_path('25-veth.netdev', 'dhcp-server.network', 'dhcp-client-ipv4-with-static-ipv6-address.network')
+        start_networkd()
+
+        self.wait_online(['veth99:degraded'], ipv4=True)
+
+        self.wait_address('192.168.5.11', ipv='-4', timeout_sec=0)
+
+    def test_wait_online_ipv6(self):
+        copy_unit_to_networkd_unit_path('25-veth.netdev', 'ipv6-prefix.network', 'ipv6-prefix-veth-with-static-ipv4-address.network')
+        start_networkd()
+
+        self.wait_online(['veth99:routable'], ipv6=True)
+
+        self.wait_address('2002:da8:1:0:1034:56ff:fe78:9abc', ipv='-6', timeout_sec=0)
 
     @expectedFailureIfModuleIsNotAvailable('bareudp')
     def test_bareudp(self):
@@ -3135,10 +3155,13 @@ class NetworkdStateFileTests(unittest.TestCase, Utilities):
 
         with open(path) as f:
             data = f.read()
+            self.assertRegex(data, r'IPV4_ADDRESS_STATE=degraded')
+            self.assertRegex(data, r'IPV6_ADDRESS_STATE=routable')
             self.assertRegex(data, r'ADMIN_STATE=configured')
             self.assertRegex(data, r'OPER_STATE=routable')
             self.assertRegex(data, r'REQUIRED_FOR_ONLINE=yes')
             self.assertRegex(data, r'REQUIRED_OPER_STATE_FOR_ONLINE=routable')
+            self.assertRegex(data, r'REQUIRED_FAMILY_FOR_ONLINE=both')
             self.assertRegex(data, r'ACTIVATION_POLICY=up')
             self.assertRegex(data, r'NETWORK_FILE=/run/systemd/network/state-file-tests.network')
             self.assertRegex(data, r'DNS=10.10.10.10#aaa.com 10.10.10.11:1111#bbb.com \[1111:2222::3333\]:1234#ccc.com')
